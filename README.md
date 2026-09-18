@@ -2,22 +2,33 @@
 
 企业知识与课程预约平台的独立 Python 服务，与 Java 业务后端、Vue 工作台通过 HTTP 联动。默认使用百炼 `qwen3.7-flash` 与 `text-embedding-v4`（1024 维），共用一把百炼 API Key。
 
-## 三个项目的位置
+三端功能、业务状态、权限和实际接口边界见 [产品功能说明书（研发版）](https://gitee.com/chy66666/intelligent-integrated-interaction-platform/blob/master/docs/product/产品功能说明书-研发版.md)。
 
-| 项目 | 本机目录 | 职责 |
+## 三个独立项目
+
+| 项目 | Git 仓库 | 职责 |
 |---|---|---|
-| Java 后端 | `D:/java/SpringAI/intelligent-integrated-interaction-platform` | 登录、工作空间成员、业务工具、审批、幂等预约、可靠投递、对外 API |
-| Python 运行时 | `D:/develop/intelligent-agent-runtime` | LangGraph、持久化恢复、完整消息、知识库入库/检索、模型调用、评测 |
-| Vue 前端 | `D:/develop/web-intelligent-integrated-interaction-platform` | 运行轨迹、审批卡、引用预览、知识管理、评测和费用展示 |
+| Java 后端 | [intelligent-integrated-interaction-platform](https://gitee.com/chy66666/intelligent-integrated-interaction-platform.git) | 登录、工作空间成员、对外 API、审批、业务幂等与 outbox |
+| Python 运行时 | [intelligent-agent-runtime](https://gitee.com/chy66666/intelligent-agent-runtime.git) | LangGraph、checkpoint、事件、知识库、模型适配与评测 |
+| Vue 前端 | [web-intelligent-integrated-interaction-platform](https://gitee.com/chy66666/web-intelligent-integrated-interaction-platform.git) | 工作台、SSE、审批卡、引用预览、知识与评测管理 |
+
+推荐在任意开发目录下将三个仓库克隆为同级目录：
+
+```sh
+git clone https://gitee.com/chy66666/intelligent-integrated-interaction-platform.git
+git clone https://gitee.com/chy66666/intelligent-agent-runtime.git
+git clone https://gitee.com/chy66666/web-intelligent-integrated-interaction-platform.git
+```
+
+Java 仓库的 Compose 默认从同级目录获取 Python、Vue 构建上下文；非同级存放时，在 Java 仓库的本地 `.env` 配置 `AGENT_RUNTIME_PATH` 和 `FRONTEND_PATH`，无需修改代码。三个服务通过可配置的 HTTP 地址联动，不依赖开发者电脑上的固定路径。
 
 ## 启动
 
 Python 3.13 为当前验证版本。建议通过 Java 仓库的 Docker Compose 启动整套应用和基础设施，详见该仓库 `docs/deployment/`；它使用本项目作为独立构建上下文。
 
-本机开发安装：
+本机开发安装（在克隆得到的 `intelligent-agent-runtime` 仓库根目录执行）：
 
 ```powershell
-cd D:\develop\intelligent-agent-runtime
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock
 .\.venv\Scripts\python.exe -m pip install -e . --no-deps
