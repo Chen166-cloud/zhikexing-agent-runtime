@@ -68,7 +68,7 @@ class AgentRuntime:
         self.event_locks: dict[str, asyncio.Lock] = {}
         self.scheduler = None
         self.graph = None
-        self.tracer, self.shutdown_telemetry = configure_telemetry("intelligent-agent-runtime")
+        self.tracer, self.shutdown_telemetry = configure_telemetry("zhikexing-agent-runtime")
 
     def configuration(self) -> dict:
         """版本快照随 run 和 checkpoint 保存；部署不能悄悄改变旧任务语义。"""

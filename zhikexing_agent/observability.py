@@ -70,8 +70,8 @@ def generation_span(
         "langfuse.trace.name": "agent.run",
         "langfuse.trace.metadata.run_id": run_id,
         "langfuse.trace.metadata.workspace_id": workspace_id,
-        "iiip.run.id": run_id,
-        "iiip.workspace.id": workspace_id,
+        "zhikexing.run.id": run_id,
+        "zhikexing.workspace.id": workspace_id,
     }
     if conversation_id:
         attributes["gen_ai.conversation.id"] = conversation_id

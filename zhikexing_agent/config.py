@@ -44,7 +44,7 @@ class Settings:
     )
     max_parallel: int = field(default_factory=lambda: int(os.getenv("AGENT_MAX_PARALLEL", "4")))
     s3_endpoint: str = field(default_factory=lambda: os.getenv("S3_ENDPOINT_URL", ""))
-    s3_bucket: str = field(default_factory=lambda: os.getenv("S3_BUCKET", "iiip-documents"))
+    s3_bucket: str = field(default_factory=lambda: os.getenv("S3_BUCKET", "zhikexing-documents"))
     parser: str = field(default_factory=lambda: os.getenv("DOCUMENT_PARSER", "pypdf"))
     rerank: bool = field(
         default_factory=lambda: os.getenv("AI_RERANK_ENABLED", "false").lower() == "true"

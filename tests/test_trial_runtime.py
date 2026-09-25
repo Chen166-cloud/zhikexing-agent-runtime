@@ -9,11 +9,11 @@ from unittest.mock import patch
 
 import httpx
 
-from iiip_agent.config import Settings
-from iiip_agent.db import Conversation, Database, Message, Run
-from iiip_agent.provider import ModelError
-from iiip_agent.runtime import AgentRuntime
-from iiip_agent.tools import trial_result
+from zhikexing_agent.config import Settings
+from zhikexing_agent.db import Conversation, Database, Message, Run
+from zhikexing_agent.provider import ModelError
+from zhikexing_agent.runtime import AgentRuntime
+from zhikexing_agent.tools import trial_result
 
 
 class TrialResultTest(unittest.TestCase):
@@ -44,7 +44,7 @@ class TrialGraphTest(unittest.IsolatedAsyncioTestCase):
         self.environment = patch.dict(os.environ, {}, clear=True)
         self.environment.start()
         self.addCleanup(self.environment.stop)
-        self.directory = tempfile.TemporaryDirectory(prefix="iiip-trial-test-")
+        self.directory = tempfile.TemporaryDirectory(prefix="zhikexing-trial-test-")
         self.addCleanup(self.directory.cleanup)
         root = Path(self.directory.name)
         self.settings = Settings(

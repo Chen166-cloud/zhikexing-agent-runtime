@@ -9,9 +9,9 @@ from unittest.mock import patch
 import httpx
 from sqlalchemy import func, select
 
-from iiip_agent.api import create_app
-from iiip_agent.config import Settings
-from iiip_agent.db import Message, Run, RunEvent
+from zhikexing_agent.api import create_app
+from zhikexing_agent.config import Settings
+from zhikexing_agent.db import Message, Run, RunEvent
 
 
 class CommandDeliveryTest(unittest.IsolatedAsyncioTestCase):
@@ -19,7 +19,7 @@ class CommandDeliveryTest(unittest.IsolatedAsyncioTestCase):
         self.environment = patch.dict(os.environ, {}, clear=True)
         self.environment.start()
         self.addCleanup(self.environment.stop)
-        self.directory = tempfile.TemporaryDirectory(prefix="iiip-delivery-test-")
+        self.directory = tempfile.TemporaryDirectory(prefix="zhikexing-delivery-test-")
         self.addCleanup(self.directory.cleanup)
         root = Path(self.directory.name)
         self.app = create_app(

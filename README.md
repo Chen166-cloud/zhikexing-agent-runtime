@@ -1,41 +1,45 @@
-# Intelligent Agent Runtime
+# 知课行 · AI 课程服务平台 / Agent 运行时
 
-企业知识、课程预约与免费试听平台的独立 Python 服务，与 Java 业务后端、Vue 工作台通过 HTTP 联动。默认使用百炼 `qwen3.7-flash` 与 `text-embedding-v4`（1024 维），共用一把百炼 API Key。
+知课行提供课程咨询、知识检索、Agent 审批办理和免费试听服务。本仓库是独立的 Python Agent 运行时：接收 Java 后端转交的任务，运行可恢复的 LangGraph 流程，并通过 Java 业务接口查询课程、准备预约或试听申请。Vue 网站负责登录、首页、工作台和用户确认；库存、订单与业务权限由 Java 后端管理。本服务不持有试听库存。
 
-截至 2026-09-25，当前 Agent 图为 `react-trial-approval-v4`。普通命令由 Java 的 RocketMQ 消费者经内部 HTTP 幂等交给本服务，试听草稿须经用户批准，再查询 Java 参与请求的最终订单结果；本服务不持有业务库存。新版已在隔离环境完成跨服务 fixture 验证，常用完整 Compose 应用尚未重建验收。
+当前 Agent 图为 `react-trial-approval-v4`。普通任务由 Java 的 RocketMQ 消费者经内部 HTTP 幂等交给本服务；试听草稿等待用户批准，执行后查询 Java 参与请求的最终订单结果。真实模型模式使用百炼 `qwen3.7-flash` 与 `text-embedding-v4`（1024 维），共用一把百炼 API Key。完整 Docker Compose 已使用 `fixture` 模型完成真实 MySQL、PostgreSQL、Redis、RocketMQ 及 Java/Python HTTP 的跨服务联调；此结果不代表外部模型效果已在完整 Compose 中验收。
 
-三端功能、业务状态、权限和实际接口边界见 [产品功能说明书（研发版）](https://gitee.com/chy66666/intelligent-integrated-interaction-platform/blob/master/docs/product/产品功能说明书-研发版.md)。
+三端功能、业务状态、权限和实际接口边界见 [产品功能说明书（研发版）](https://gitee.com/chy66666/zhikexing-backend/blob/master/docs/product/产品功能说明书-研发版.md)。
 
-## 三个独立项目
+## 项目组成
 
-| 项目 | Git 仓库 | 职责 |
+「知课行 · AI 课程服务平台」的三个仓库、同级开发目录与构建上下文统一使用下表名称。
+
+Python 发布包名为 `zhikexing-agent-runtime`，导入包和启动模块为 `zhikexing_agent`。
+
+| 项目 | 仓库 | 职责 |
 |---|---|---|
-| Java 后端 | [intelligent-integrated-interaction-platform](https://gitee.com/chy66666/intelligent-integrated-interaction-platform.git) | 登录、工作空间成员、对外 API、审批、业务幂等与 outbox |
-| Python 运行时 | [intelligent-agent-runtime](https://gitee.com/chy66666/intelligent-agent-runtime.git) | LangGraph、checkpoint、事件、知识库、模型适配与评测 |
-| Vue 前端 | [web-intelligent-integrated-interaction-platform](https://gitee.com/chy66666/web-intelligent-integrated-interaction-platform.git) | 工作台、SSE、审批卡、引用预览、知识与评测管理 |
+| Java 后端 | [zhikexing-backend](https://gitee.com/chy66666/zhikexing-backend.git) | 登录、工作空间成员、对外 API、审批、业务幂等、RocketMQ 投递与试听订单 |
+| Python 运行时 | [zhikexing-agent-runtime](https://gitee.com/chy66666/zhikexing-agent-runtime.git) | LangGraph、checkpoint、事件、知识检索、模型适配与评测 |
+| Vue 前端 | [zhikexing-web](https://gitee.com/chy66666/zhikexing-web.git) | 知课行登录注册、首页、Agent 工作台、免费试听、审批卡、引用预览、知识与评测管理 |
 
 推荐在任意开发目录下将三个仓库克隆为同级目录：
 
 ```sh
-git clone https://gitee.com/chy66666/intelligent-integrated-interaction-platform.git
-git clone https://gitee.com/chy66666/intelligent-agent-runtime.git
-git clone https://gitee.com/chy66666/web-intelligent-integrated-interaction-platform.git
+git clone git@gitee.com:chy66666/zhikexing-backend.git zhikexing-backend
+git clone git@gitee.com:chy66666/zhikexing-agent-runtime.git zhikexing-agent-runtime
+git clone git@gitee.com:chy66666/zhikexing-web.git zhikexing-web
 ```
 
-Java 仓库的 Compose 默认从同级目录获取 Python、Vue 构建上下文；非同级存放时，在 Java 仓库的本地 `.env` 配置 `AGENT_RUNTIME_PATH` 和 `FRONTEND_PATH`，无需修改代码。三个服务通过可配置的 HTTP 地址联动，不依赖开发者电脑上的固定路径。
+`zhikexing-backend` 的 Compose 默认使用同级的 `../zhikexing-agent-runtime` 和 `../zhikexing-web` 作为 Python、Vue 构建上下文；非同级存放时，在 Java 仓库的本地 `.env` 配置 `AGENT_RUNTIME_PATH` 和 `FRONTEND_PATH`，无需修改代码。三个服务通过可配置的 HTTP 地址联动，不依赖开发者电脑上的固定路径。
 
 ## 启动
 
 Python 3.13 为当前验证版本。建议通过 Java 仓库的 Docker Compose 启动整套应用和基础设施，详见该仓库 `docs/deployment/`；它使用本项目作为独立构建上下文。
 
-本机开发安装（在克隆得到的 `intelligent-agent-runtime` 仓库根目录执行）：
+本机开发安装（在克隆得到的 `zhikexing-agent-runtime` 仓库根目录执行）：
 
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.lock
 .\.venv\Scripts\python.exe -m pip install -e . --no-deps
 # 配置下表变量后启动；直接窗口运行，便于开发时停止。
-.\.venv\Scripts\python.exe -m iiip_agent
+.\.venv\Scripts\python.exe -m zhikexing_agent
 ```
 
 | 变量 | 说明 |
@@ -48,17 +52,17 @@ python -m venv .venv
 | `AI_EMBEDDING_DIMENSIONS` | 固定 1024，变更需迁移索引 |
 | `PORT` / `STORAGE_ROOT` | 默认 8000 / `./data`；数据目录需持久化 |
 | `AGENT_COST_LIMIT_CNY` | 默认 0.10 元；每次模型请求前检查已知估算费用，单次请求仍可能越过阈值，不能当作厂商硬计费上限 |
-| `S3_ENDPOINT_URL` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | 可选 S3 对象存储；未设置 endpoint 时存本地数据目录；默认 bucket 为 `iiip-documents` |
+| `S3_ENDPOINT_URL` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | 可选 S3 对象存储；未设置 endpoint 时存本地数据目录；新部署默认 bucket 为 `zhikexing-documents`；接入已有存储时显式填写原桶名 |
 | `DOCUMENT_PARSER` | 默认 `pypdf`，支持有文本的 PDF/TXT/Markdown；安装 `.[documents]` 后可选 `docling` 做布局/OCR解析 |
 | `AI_RERANK_ENABLED` | 默认 false；安装 `.[rerank]` 后可开启本地 BGE 对照，需要另测模型下载、CPU/内存与延迟 |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | 可选 OTLP HTTP Collector 地址 |
 | `LANGFUSE_BASE_URL` / `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY` | 可选 Langfuse 导出，凭据仅用于观测，不是另一家模型 Key |
 
-`AI_PROVIDER=fixture` 仅用于显式隔离验证，输出有 fixture 标记；正式演示使用默认 `bailian`。默认 `/health` 可查看实际 provider、模型和存储类型。
+`AI_PROVIDER=fixture` 用于确定性研发联调，输出有 fixture 标记。当前完整 Compose 联调采用此模式，但数据库、Redis、RocketMQ 和服务间 HTTP 均为真实容器。验收真实模型时设为 `AI_PROVIDER=bailian`，配置 `DASHSCOPE_API_KEY` 并重新部署 Runtime；默认 `/health` 可查看实际 provider、模型和存储类型。
 
 ## RocketMQ 命令投递边界
 
-统一消息链路由 Java 管理：业务 outbox → RocketMQ → Java 命令消费者 → Python `/internal/v1/runs` 或 `/internal/v1/runs/{id}/cancel`。消费者只有在 Python 返回持久化成功后才确认消息，网络异常由 Java 的消费重试处理。Python 不再直接消费 broker，也不需要 MQ SDK、连接凭据或独立队列开关。
+统一消息链路由 Java 管理：业务 outbox → RocketMQ → Java 命令消费者 → Python `/internal/v1/runs` 或 `/internal/v1/runs/{id}/cancel`。消费者只有在 Python 返回持久化成功后才确认消息，网络异常由 Java 的消费重试处理。Python 不直接消费 broker，也不需要 MQ SDK、连接凭据或独立队列开关。
 
 内部 HTTP 保持 `X-Internal-Token`、`X-Actor-Id`、`X-Workspace-Id` 和 `X-Command-Delivery: true` 契约。Python 以 runId 主键和 request_hash 对创建命令去重，在同一事务保存任务和输入；取消状态及终态事件同样在返回前提交。这里没有独立的 command inbox 表，不把 HTTP 返回前持久化等同于端到端 exactly-once。不要绕过 Java 的可信身份校验向运行时直接开放公网请求。
 
@@ -80,7 +84,7 @@ run 与 checkpoint 固定图版本、提示词和工具 Schema 哈希、模型�
 | `draft_trial_claim` | `POST /internal/v1/tools/draft-trial-claim` | 只接受 campaignId，运行时生成稳定 actionId；不提交、不预占 |
 | `query_trial_claim` | `GET /internal/v1/tools/trial-claims/by-action/{actionId}` | 查询当前用户申请的真实结果，不重新申请 |
 
-试听草稿返回 `toolName=claim_trial` 的审批对象，图在持久化 interrupt 处等待用户批准。批准后才调用 `POST /internal/v1/tools/execute-trial-claim`，只提交原 actionId 和 approvalId；用户、空间与 run 由运行时可信请求头携带。旧普通预约缺省 `toolName=reserve_course`，继续使用原预约接口。
+试听草稿返回 `toolName=claim_trial` 的审批对象，图在持久化 interrupt 处等待用户批准。批准后才调用 `POST /internal/v1/tools/execute-trial-claim`，只提交原 actionId 和 approvalId；用户、空间与 run 由运行时可信请求头携带。普通课程预约的审批对象缺省 `toolName=reserve_course`，使用课程预约接口。
 
 执行接口受理之后，图按 actionId 最多查询 3 次（间隔 1 秒），不会因排队或响应慢重新申请。`PENDING`/`RESERVED` 明确显示仍在处理中；只有查询返回 `SUCCEEDED` 并带真实 orderId 才显示成功；`REJECTED` 显示失败原因。回执由确定性节点生成，不交给模型改写业务状态。用户可在后续任务里提供动作编号继续查询，Agent 完成一次查询不代表试听订单已经成功。
 
@@ -98,15 +102,15 @@ run 与 checkpoint 固定图版本、提示词和工具 Schema 哈希、模型�
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-覆盖命令重投/冲突/取消、可信身份、试听批准与拒绝、排队状态、售罄、checkpoint 重启后对账、稳定 actionId、状态不缓存、旧普通预约兼容。真实 RocketMQ 与 Java 消费重试的联调在 Java 仓库执行，不能把这些隔离测试写成 broker 集成验证。
+覆盖命令重投/冲突/取消、可信身份、试听批准与拒绝、排队状态、售罄、checkpoint 重启后对账、稳定 actionId、状态不缓存和普通课程预约。真实 RocketMQ 与 Java 消费重试的联调在 Java 仓库执行，不能把这些隔离测试写成 broker 集成验证。
 
 - `/health`：数据库和运行配置；不调用计费模型。
 - `/metrics`：Prometheus 运行/文档状态与后台作业数，不含用户内容。
 - `/internal/v1/metrics`：授权空间的业务统计，未知账单明确标记，不当作免费调用。
 - `/internal/v1/evaluations`：生产评测功能，保存逐例结果、规则判定、引用、延迟和 usage；没有参考答案的样本不自动算通过。
 
-本次验证包括 SQLite 的 21 项功能回归、扩展后的真实 PostgreSQL/pgvector 37 项回归，以及百炼真实聊天、1024 维 Embedding 和知识评测冒烟。数据库回归使用显式模拟模型/业务工具，不能当作模型效果指标。37 项包含原有案例及新案例，不能与旧轮次叠加计算。临时测试类和脚本按用户要求在验证完成后清理，去敏结果与部署记录保留在 Java 项目文档中。
+Prometheus 指标为 `zhikexing_agent_runs`、`zhikexing_agent_documents`、`zhikexing_agent_active_jobs`；对应看板查询需使用这些名称。OpenTelemetry 的 `service.name` 为 `zhikexing-agent-runtime`，运行与空间关联属性为 `zhikexing.run.id`、`zhikexing.workspace.id`。现有 API 路径、身份请求头、数据库表和 checkpoint 结构保持兼容；新部署默认对象桶与旧桶相互独立，不自动迁移或删除旧对象。
 
-清理例外：自动审批拒绝删除 `.test-artifacts` 中的 4 个临时脚本和 1 个本地验证状态文件，仅返回 `blocked by policy`。文件仍留在该 Git/Docker 忽略目录，尚未清理完成；应用运行不依赖它们，详细登记见 Java 项目《开发与验证记录》。
+Agent 独立验证记录包括 SQLite 的 21 项功能回归、真实 PostgreSQL/pgvector 的 37 项回归，以及百炼真实聊天、1024 维 Embedding 和知识评测冒烟。数据库回归使用显式模拟模型/业务工具，不能当作模型效果指标。完整 Docker Compose 另以 `fixture` 模型完成至少四次跨服务烟测，涵盖 Agent 提出试听草稿、用户批准、真实消息与 Redis 库存链路、异步创建 0 元订单以及数据库/Redis 对账；隔离真实 Redis/RocketMQ 的 18 项 Java 集成测试和真实浏览器 OWNER 直接抢课操作也已通过。完整 Compose 中的外部百炼模型效果、浏览器内 Agent 审批、真实 API 的 MEMBER 权限、跨设备恢复和网络故障尚未验收；隔离并发结果不代表生产吞吐。去敏结果与部署记录见 Java 项目的 [Docker 部署验证记录](https://gitee.com/chy66666/zhikexing-backend/blob/master/docs/deployment/Docker部署验证记录.md)。
 
 同一数据库只允许一个 runtime worker。开发时若要使用 Compose 的数据库，应先停止 Compose 中的 `agent-runtime`；独立验证可使用另建数据库和存储目录，避免与运行中的任务竞争。

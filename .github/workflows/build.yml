@@ -28,7 +28,7 @@ jobs:
       - name: 依赖一致性与语法检查
         run: |
           python -m pip check
-          python -m compileall -q iiip_agent
+          python -m compileall -q zhikexing_agent
       - name: 构建可分发 wheel
         run: python -m pip wheel --no-deps . --wheel-dir dist
       - name: 隔离的命令投递与试听审批回归

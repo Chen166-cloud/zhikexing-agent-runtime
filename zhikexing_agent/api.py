@@ -136,7 +136,7 @@ def create_app(settings: Settings | None = None):
             await runtime.close()
             await db.close()
 
-    app = FastAPI(title="IIIP Agent Runtime", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="知课行 Agent Runtime", version="1.0.0", lifespan=lifespan)
 
     async def scope(
         x_internal_token: str = Header(default=""),
@@ -195,12 +195,12 @@ def create_app(settings: Settings | None = None):
     async def prometheus_metrics():
         registry = CollectorRegistry()
         run_count = Gauge(
-            "iiip_agent_runs", "运行状态数量", ["status", "provider"], registry=registry
+            "zhikexing_agent_runs", "运行状态数量", ["status", "provider"], registry=registry
         )
         document_count = Gauge(
-            "iiip_agent_documents", "文档入库状态数量", ["status"], registry=registry
+            "zhikexing_agent_documents", "文档入库状态数量", ["status"], registry=registry
         )
-        active_jobs = Gauge("iiip_agent_active_jobs", "当前后台作业数量", registry=registry)
+        active_jobs = Gauge("zhikexing_agent_active_jobs", "当前后台作业数量", registry=registry)
         async with db.session() as session:
             counts = (
                 await session.execute(select(Run.status, func.count()).group_by(Run.status))
