@@ -191,7 +191,29 @@ class ModelProvider:
         tool_messages = [m for m in messages if m["role"] == "tool"]
         names = [m.get("name") for m in tool_messages]
         call = None
-        if tools and "预约" in input_text and "业务执行结果" not in input_text:
+        if tools and any(word in input_text for word in ("试听", "秒杀")):
+            action_match = re.search(
+                r"(?:actionId|动作编号)[：:=\s]+([a-zA-Z0-9_-]{1,64})", input_text
+            )
+            if action_match and "query_trial_claim" not in names:
+                call = ("query_trial_claim", {"actionId": action_match[1]})
+            elif "query_trial_campaigns" not in names:
+                call = ("query_trial_campaigns", {})
+            elif "draft_trial_claim" not in names and any(
+                word in input_text for word in ("抢", "领取", "申请", "报名", "参加", "预约")
+            ):
+                campaigns = json.loads(
+                    next(
+                        m["content"]
+                        for m in tool_messages
+                        if m.get("name") == "query_trial_campaigns"
+                    )
+                )
+                if isinstance(campaigns, list) and campaigns:
+                    campaign_id = campaigns[0].get("id", campaigns[0].get("campaignId"))
+                    if campaign_id is not None:
+                        call = ("draft_trial_claim", {"campaignId": str(campaign_id)})
+        elif tools and "预约" in input_text and "业务执行结果" not in input_text:
             if "search_courses" not in names:
                 call = ("search_courses", {})
             elif "list_campuses" not in names:

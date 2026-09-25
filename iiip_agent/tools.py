@@ -54,12 +54,57 @@ TOOLS = [
         ["courseId", "schoolId", "studentName", "contactInfo"],
     ),
     function(
+        "query_trial_campaigns",
+        "查询免费试听活动、开抢窗口和状态；查询与准备草稿都不锁定名额，提交时由服务端校验",
+        {},
+    ),
+    function(
+        "draft_trial_claim",
+        "准备免费试听抢名额草稿并等待用户批准；仅在用户明确要申请时调用，不提交、不预占名额，费用为0",
+        {"campaignId": {"type": "string", "minLength": 1, "maxLength": 64}},
+        ["campaignId"],
+    ),
+    function(
+        "query_trial_claim",
+        "用之前返回的actionId查询本人免费试听申请；只有SUCCEEDED及真实orderId代表成功，PENDING/RESERVED仍在处理中",
+        {"actionId": {"type": "string", "minLength": 1, "maxLength": 64}},
+        ["actionId"],
+    ),
+    function(
         "ask_user",
         "缺少必需信息时暂停任务并请求用户补充",
         {"question": {"type": "string"}},
         ["question"],
     ),
 ]
+
+
+def trial_result(value: dict, action_id: str) -> dict:
+    """只将 Java 查询到的业务状态当成事实，排队或预留不等于订单成功。"""
+    summaries = {
+        "PENDING": "申请已受理，仍在处理中，尚未确认获得名额。可用 actionId 继续查询。",
+        "RESERVED": "名额已预留，订单仍在处理中，尚未确认成功。可用 actionId 继续查询。",
+        "SUCCEEDED": "免费试听订单已成功创建，请以真实 orderId 为凭据。",
+        "REJECTED": "申请未成功，未获得免费试听名额，请查看业务原因。",
+    }
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get("status"), str)
+        or value["status"] not in summaries
+    ):
+        raise ModelError("INVALID_TRIAL_RESULT", "试听申请接口返回了未知状态，请稍后重新查询")
+    if value.get("actionId") not in (None, action_id):
+        raise ModelError("INVALID_TRIAL_RESULT", "试听申请结果与动作编号不一致")
+    if value["status"] == "SUCCEEDED" and (
+        not isinstance(value.get("orderId"), str) or not value["orderId"].strip()
+    ):
+        raise ModelError("INVALID_TRIAL_RESULT", "试听申请成功状态缺少订单凭据，请稍后重新查询")
+    return {
+        **value,
+        "actionId": action_id,
+        "confirmed": value["status"] == "SUCCEEDED",
+        "summary": summaries[value["status"]],
+    }
 
 
 class ToolClient:

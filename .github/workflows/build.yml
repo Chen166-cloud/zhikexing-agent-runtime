@@ -31,3 +31,5 @@ jobs:
           python -m compileall -q iiip_agent
       - name: 构建可分发 wheel
         run: python -m pip wheel --no-deps . --wheel-dir dist
+      - name: 隔离的命令投递与试听审批回归
+        run: python -m unittest discover -s tests -v

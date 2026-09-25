@@ -13,7 +13,7 @@ dependencies = [
   "pgvector>=0.4,<1", "langgraph>=1.0,<2", "langgraph-checkpoint-sqlite>=3,<4",
   "langgraph-checkpoint-postgres>=3,<4", "python-multipart>=0.0.20,<1",
   "pypdf>=6,<7", "jieba>=0.42,<1", "boto3>=1.35,<2", "prometheus-client>=0.22,<1",
-  "opentelemetry-sdk>=1.30,<2", "opentelemetry-exporter-otlp-proto-http>=1.30,<2", "aio-pika>=9.5,<10"
+  "opentelemetry-sdk>=1.30,<2", "opentelemetry-exporter-otlp-proto-http>=1.30,<2"
 ]
 
 [project.optional-dependencies]

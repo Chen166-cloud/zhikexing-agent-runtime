@@ -1,6 +1,8 @@
 # Intelligent Agent Runtime
 
-企业知识与课程预约平台的独立 Python 服务，与 Java 业务后端、Vue 工作台通过 HTTP 联动。默认使用百炼 `qwen3.7-flash` 与 `text-embedding-v4`（1024 维），共用一把百炼 API Key。
+企业知识、课程预约与免费试听平台的独立 Python 服务，与 Java 业务后端、Vue 工作台通过 HTTP 联动。默认使用百炼 `qwen3.7-flash` 与 `text-embedding-v4`（1024 维），共用一把百炼 API Key。
+
+截至 2026-09-25，当前 Agent 图为 `react-trial-approval-v4`。普通命令由 Java 的 RocketMQ 消费者经内部 HTTP 幂等交给本服务，试听草稿须经用户批准，再查询 Java 参与请求的最终订单结果；本服务不持有业务库存。新版已在隔离环境完成跨服务 fixture 验证，常用完整 Compose 应用尚未重建验收。
 
 三端功能、业务状态、权限和实际接口边界见 [产品功能说明书（研发版）](https://gitee.com/chy66666/intelligent-integrated-interaction-platform/blob/master/docs/product/产品功能说明书-研发版.md)。
 
@@ -47,7 +49,6 @@ python -m venv .venv
 | `PORT` / `STORAGE_ROOT` | 默认 8000 / `./data`；数据目录需持久化 |
 | `AGENT_COST_LIMIT_CNY` | 默认 0.10 元；每次模型请求前检查已知估算费用，单次请求仍可能越过阈值，不能当作厂商硬计费上限 |
 | `S3_ENDPOINT_URL` / `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` / `S3_BUCKET` | 可选 S3 对象存储；未设置 endpoint 时存本地数据目录；默认 bucket 为 `iiip-documents` |
-| `RABBITMQ_ENABLED` / `RABBITMQ_URL` | 开启可靠队列消费；关闭时 Java 使用明确配置的 HTTP outbox 投递 |
 | `DOCUMENT_PARSER` | 默认 `pypdf`，支持有文本的 PDF/TXT/Markdown；安装 `.[documents]` 后可选 `docling` 做布局/OCR解析 |
 | `AI_RERANK_ENABLED` | 默认 false；安装 `.[rerank]` 后可开启本地 BGE 对照，需要另测模型下载、CPU/内存与延迟 |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | 可选 OTLP HTTP Collector 地址 |
@@ -55,21 +56,49 @@ python -m venv .venv
 
 `AI_PROVIDER=fixture` 仅用于显式隔离验证，输出有 fixture 标记；正式演示使用默认 `bailian`。默认 `/health` 可查看实际 provider、模型和存储类型。
 
+## RocketMQ 命令投递边界
+
+统一消息链路由 Java 管理：业务 outbox → RocketMQ → Java 命令消费者 → Python `/internal/v1/runs` 或 `/internal/v1/runs/{id}/cancel`。消费者只有在 Python 返回持久化成功后才确认消息，网络异常由 Java 的消费重试处理。Python 不再直接消费 broker，也不需要 MQ SDK、连接凭据或独立队列开关。
+
+内部 HTTP 保持 `X-Internal-Token`、`X-Actor-Id`、`X-Workspace-Id` 和 `X-Command-Delivery: true` 契约。Python 以 runId 主键和 request_hash 对创建命令去重，在同一事务保存任务和输入；取消状态及终态事件同样在返回前提交。这里没有独立的 command inbox 表，不把 HTTP 返回前持久化等同于端到端 exactly-once。不要绕过 Java 的可信身份校验向运行时直接开放公网请求。
+
 ## 执行与恢复
 
 LangGraph 运行 `reason → tools → reason` 的有界循环，预约草稿进入持久化 `interrupt`。用户批准后，运行时通过 Java 提交并查询结果；批准参数和事务幂等由 Java 掌握。重启后从同一 `runId` 的 checkpoint 恢复，已执行动作按 `actionId` 查询，不重复创建预约。
 
 完整消息独立保存；模型只读取有预算的历史窗口。SSE 事件具有单调序号，支持 `after` 和 `Last-Event-ID`。终态、最终消息和结束事件在同一数据库事务提交。
 
-当前图版本为 `react-approval-v3`。同一运行的相同只读查询缓存 30 秒，知识证据复用前再次检查授权和版本；不缓存预约草稿或写入。模型重复查询空结果时进入 `WAITING_INPUT`，用户补充后从 checkpoint 继续。引用必须使用实际检索到的证据编号；缺失或伪造编号只允许一次受预算约束的修正，前端通过 `message.reset` 清除旧草稿，仍无效则明确失败。
+当前图版本为 `react-trial-approval-v4`。同一运行的相同课程/校区/知识查询缓存 30 秒，知识证据复用前再次检查授权和版本；不缓存预约草稿、写入、试听活动与申请状态。模型重复查询空结果时进入 `WAITING_INPUT`，用户补充后从 checkpoint 继续。引用必须使用实际检索到的证据编号；缺失或伪造编号只允许一次受预算约束的修正，前端通过 `message.reset` 清除旧草稿，仍无效则明确失败。
 
 run 与 checkpoint 固定图版本、提示词和工具 Schema 哈希、模型与 Embedding 配置。恢复时不兼容会返回明确错误；先恢复原部署排空任务，再发布改变执行语义的新版本。费用与 Token 预算在新请求前检查，缺失厂商 usage 的费用仍显示未知。
+
+### 免费试听工具与审批
+
+| 模型可用工具 | Java 内部接口 | 行为 |
+|---|---|---|
+| `query_trial_campaigns` | `GET /internal/v1/tools/trial-campaigns` | 查询活动；不缓存即时窗口/余量 |
+| `draft_trial_claim` | `POST /internal/v1/tools/draft-trial-claim` | 只接受 campaignId，运行时生成稳定 actionId；不提交、不预占 |
+| `query_trial_claim` | `GET /internal/v1/tools/trial-claims/by-action/{actionId}` | 查询当前用户申请的真实结果，不重新申请 |
+
+试听草稿返回 `toolName=claim_trial` 的审批对象，图在持久化 interrupt 处等待用户批准。批准后才调用 `POST /internal/v1/tools/execute-trial-claim`，只提交原 actionId 和 approvalId；用户、空间与 run 由运行时可信请求头携带。旧普通预约缺省 `toolName=reserve_course`，继续使用原预约接口。
+
+执行接口受理之后，图按 actionId 最多查询 3 次（间隔 1 秒），不会因排队或响应慢重新申请。`PENDING`/`RESERVED` 明确显示仍在处理中；只有查询返回 `SUCCEEDED` 并带真实 orderId 才显示成功；`REJECTED` 显示失败原因。回执由确定性节点生成，不交给模型改写业务状态。用户可在后续任务里提供动作编号继续查询，Agent 完成一次查询不代表试听订单已经成功。
+
+返回字段约定为 actionId、requestId、campaignId、status、可空 orderId/reason；运行时另附 confirmed 与状态说明。停止 Agent 只停止运行和后续等待，**不会撤销已受理的试听申请**。试听费用为 0，本模块不提供订单取消、付款或退款流程。开场前可以准备草稿，是否在有效窗口及有名额由 Java 提交时校验。
 
 当前使用**单 worker、多任务并发**；PostgreSQL advisory lock 阻止误开两个 worker 竞争 checkpoint。它不等同于已完成分布式多 worker fencing。生产部署采用 PostgreSQL/pgvector，SQLite 仅用于本地功能验证。
 
 知识文档先异步解析/向量化，完整版本发布后才切换 activeVersion。查询先限定空间、知识库及有效版本，再融合 dense 与中文词法候选；词法基线按词项重叠排序，不能称为 Elasticsearch/BM25。删除先撤销读取和检索，再异步清理对象。
 
 ## 验证与可观测
+
+持续维护的隔离回归使用临时 SQLite、fixture 模型和模拟 Java HTTP，不访问真实模型、MQ、业务库或本地 `.env`：
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest discover -s tests -v
+```
+
+覆盖命令重投/冲突/取消、可信身份、试听批准与拒绝、排队状态、售罄、checkpoint 重启后对账、稳定 actionId、状态不缓存、旧普通预约兼容。真实 RocketMQ 与 Java 消费重试的联调在 Java 仓库执行，不能把这些隔离测试写成 broker 集成验证。
 
 - `/health`：数据库和运行配置；不调用计费模型。
 - `/metrics`：Prometheus 运行/文档状态与后台作业数，不含用户内容。
