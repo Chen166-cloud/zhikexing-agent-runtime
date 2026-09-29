@@ -25,7 +25,7 @@ def function(name, description, properties, required=()):
 TOOLS = [
     function(
         "search_courses",
-        "查询真实课程；金额、学历要求以工具结果为准",
+        "查询真实课程；price为人民币元（不除以100），duration为天，edu为最低学历要求；以工具结果为准",
         {
             "keyword": {"type": "string"},
             "type": {"type": "string"},

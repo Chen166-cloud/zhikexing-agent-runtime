@@ -1,6 +1,6 @@
 # 知课行 · AI 课程服务平台 / Agent 运行时
 
-知课行提供课程咨询、知识检索、Agent 审批办理和免费试听服务。本仓库是独立的 Python Agent 运行时：接收 Java 后端转交的任务，运行可恢复的 LangGraph 流程，并通过 Java 业务接口查询课程、准备预约或试听申请。Vue 网站负责登录、首页、工作台和用户确认；库存、订单与业务权限由 Java 后端管理。本服务不持有试听库存。
+知课行提供课程浏览与咨询、知识检索、Agent 审批办理和免费试听服务。本仓库是独立的 Python Agent 运行时：接收 Java 后端转交的任务，运行可恢复的 LangGraph 流程，并通过 Java 业务接口查询课程、准备预约或试听申请。Vue 网站负责登录、课程页面、工作台和用户确认；库存、订单与业务权限由 Java 后端管理。本服务不持有试听库存。
 
 当前 Agent 图为 `react-trial-approval-v4`。普通任务由 Java 的 RocketMQ 消费者经内部 HTTP 幂等交给本服务；试听草稿等待用户批准，执行后查询 Java 参与请求的最终订单结果。真实模型模式使用百炼 `qwen3.7-flash` 与 `text-embedding-v4`（1024 维），共用一把百炼 API Key。完整 Docker Compose 已使用 `fixture` 模型完成真实 MySQL、PostgreSQL、Redis、RocketMQ 及 Java/Python HTTP 的跨服务联调；此结果不代表外部模型效果已在完整 Compose 中验收。
 
@@ -14,9 +14,9 @@ Python 发布包名为 `zhikexing-agent-runtime`，导入包和启动模块为 `
 
 | 项目 | 仓库 | 职责 |
 |---|---|---|
-| Java 后端 | [zhikexing-backend](https://gitee.com/chy66666/zhikexing-backend.git) | 登录、工作空间成员、对外 API、审批、业务幂等、RocketMQ 投递与试听订单 |
+| Java 后端 | [zhikexing-backend](https://gitee.com/chy66666/zhikexing-backend.git) | 登录保护、工作空间成员、课程目录与两级缓存、审批、业务幂等、RocketMQ 投递与试听订单 |
 | Python 运行时 | [zhikexing-agent-runtime](https://gitee.com/chy66666/zhikexing-agent-runtime.git) | LangGraph、checkpoint、事件、知识检索、模型适配与评测 |
-| Vue 前端 | [zhikexing-web](https://gitee.com/chy66666/zhikexing-web.git) | 知课行登录注册、首页、Agent 工作台、免费试听、审批卡、引用预览、知识与评测管理 |
+| Vue 前端 | [zhikexing-web](https://gitee.com/chy66666/zhikexing-web.git) | 登录注册、首页、课程广场与详情、Agent 工作台、免费试听、审批卡、知识与评测管理 |
 
 推荐在任意开发目录下将三个仓库克隆为同级目录：
 
@@ -66,15 +66,30 @@ python -m venv .venv
 
 内部 HTTP 保持 `X-Internal-Token`、`X-Actor-Id`、`X-Workspace-Id` 和 `X-Command-Delivery: true` 契约。Python 以 runId 主键和 request_hash 对创建命令去重，在同一事务保存任务和输入；取消状态及终态事件同样在返回前提交。这里没有独立的 command inbox 表，不把 HTTP 返回前持久化等同于端到端 exactly-once。不要绕过 Java 的可信身份校验向运行时直接开放公网请求。
 
+浏览器登录由 Java 管理，包括 BCrypt 校验前的限流、认证并发上限、密码错误冷却和每账号最多 3 个会话。Runtime 使用 `AGENT_INTERNAL_TOKEN` 及 run 中持久化的用户、工作空间身份，不读取浏览器 Token；浏览器会话过期或被淘汰不取消已提交的 run。用户重新登录后可查看结果或继续审批。此次 Java 升级使用 `login:v2` 会话键，原浏览器 Token 需要重新登录；Runtime 内部凭据无需随之更换。参数与接口响应见 Java 的[登录保护说明](https://gitee.com/chy66666/zhikexing-backend/blob/master/docs/modules/登录保护.md)。
+
 ## 执行与恢复
 
 LangGraph 运行 `reason → tools → reason` 的有界循环，预约草稿进入持久化 `interrupt`。用户批准后，运行时通过 Java 提交并查询结果；批准参数和事务幂等由 Java 掌握。重启后从同一 `runId` 的 checkpoint 恢复，已执行动作按 `actionId` 查询，不重复创建预约。
 
 完整消息独立保存；模型只读取有预算的历史窗口。SSE 事件具有单调序号，支持 `after` 和 `Last-Event-ID`。终态、最终消息和结束事件在同一数据库事务提交。
 
-当前图版本为 `react-trial-approval-v4`。同一运行的相同课程/校区/知识查询缓存 30 秒，知识证据复用前再次检查授权和版本；不缓存预约草稿、写入、试听活动与申请状态。模型重复查询空结果时进入 `WAITING_INPUT`，用户补充后从 checkpoint 继续。引用必须使用实际检索到的证据编号；缺失或伪造编号只允许一次受预算约束的修正，前端通过 `message.reset` 清除旧草稿，仍无效则明确失败。
+模型重复查询空结果时进入 `WAITING_INPUT`，用户补充后从 checkpoint 继续。引用必须使用实际检索到的证据编号；缺失或伪造编号只允许一次受预算约束的修正，前端通过 `message.reset` 清除旧草稿，仍无效则明确失败。
 
 run 与 checkpoint 固定图版本、提示词和工具 Schema 哈希、模型与 Embedding 配置。恢复时不兼容会返回明确错误；先恢复原部署排空任务，再发布改变执行语义的新版本。费用与 Token 预算在新请求前检查，缺失厂商 usage 的费用仍显示未知。
+
+### 课程工具与缓存
+
+`search_courses` 通过 `POST /internal/v1/tools/courses` 查询最多 50 门课程，支持 `keyword/type/edu/sortBy/ascending`；`list_campuses` 通过 `GET /internal/v1/tools/campuses` 查询最多 100 个全局校区。课程 `id` 是字符串，`price` 是人民币元整数（不除以 100），`duration` 是天，`edu` 是最低学历等级；传入 `edu` 时返回最低要求不高于该值的课程。校区目录不表示课程与校区的授课关系。
+
+| 缓存 | 范围与职责 |
+| --- | --- |
+| Java Caffeine + Redis | 默认课程列表、课程详情、创建活动的固定选项与校区目录；本地 10 秒、共享 60 秒，Redisson 锁合并跨实例冷缓存回源。带筛选或非默认排序的课程查询直接查 MySQL |
+| Agent `readCache` | 同一个 run 内，相同参数的课程、校区、知识查询结果保留 30 秒，随 checkpoint 恢复，减少模型重复工具调用；知识证据复用前重新检查授权和版本 |
+
+Java 在缓存访问前继续校验内部身份、运行与成员权限。Agent 仍使用原有可信工具接口；两种缓存分别减少数据库回源和重复工具调用，数据延迟可能叠加。登录态、权限、预约写入、试听活动、库存与申请状态均不放入上述结果缓存。Java 配置、失效边界与测试见[课程目录与两级缓存](https://gitee.com/chy66666/zhikexing-backend/blob/master/docs/modules/课程目录与两级缓存.md)。
+
+前端 `/courses/:id` 的咨询入口把课程名和字符串 ID 带入工作台。初始化成功后只准备本地空会话并预填问题，用户点击发送后才创建服务端会话与 Agent 任务。
 
 ### 免费试听工具与审批
 
@@ -111,6 +126,16 @@ run 与 checkpoint 固定图版本、提示词和工具 Schema 哈希、模型�
 
 Prometheus 指标为 `zhikexing_agent_runs`、`zhikexing_agent_documents`、`zhikexing_agent_active_jobs`；对应看板查询需使用这些名称。OpenTelemetry 的 `service.name` 为 `zhikexing-agent-runtime`，运行与空间关联属性为 `zhikexing.run.id`、`zhikexing.workspace.id`。现有 API 路径、身份请求头、数据库表和 checkpoint 结构保持兼容；新部署默认对象桶与旧桶相互独立，不自动迁移或删除旧对象。
 
-Agent 独立验证记录包括 SQLite 的 21 项功能回归、真实 PostgreSQL/pgvector 的 37 项回归，以及百炼真实聊天、1024 维 Embedding 和知识评测冒烟。数据库回归使用显式模拟模型/业务工具，不能当作模型效果指标。完整 Docker Compose 另以 `fixture` 模型完成至少四次跨服务烟测，涵盖 Agent 提出试听草稿、用户批准、真实消息与 Redis 库存链路、异步创建 0 元订单以及数据库/Redis 对账；隔离真实 Redis/RocketMQ 的 18 项 Java 集成测试和真实浏览器 OWNER 直接抢课操作也已通过。完整 Compose 中的外部百炼模型效果、浏览器内 Agent 审批、真实 API 的 MEMBER 权限、跨设备恢复和网络故障尚未验收；隔离并发结果不代表生产吞吐。去敏结果与部署记录见 Java 项目的 [Docker 部署验证记录](https://gitee.com/chy66666/zhikexing-backend/blob/master/docs/deployment/Docker部署验证记录.md)。
+2026-09-29 已重建 Java、Python、Vue 镜像并启动完整 Compose，当前验证结果如下：
+
+| 范围 | 结果 |
+| --- | --- |
+| Runtime 回归 | 14 项 unittest 通过，使用临时 SQLite、fixture 模型和模拟 Java HTTP；Java 登录保护和课程缓存沿用原有内部认证与任务身份契约 |
+| 真实 Compose | Runtime 为 `UP`、`provider=fixture`、`storage=postgresql`；经 8088 Nginx 完成 Agent 试听审批、异步零元订单与数据库/Redis 对账 |
+| 课程咨询入口 | 真实浏览器进入工作台并预填课程名、字符串 ID；预填过程中没有创建服务端会话或运行 |
+
+历史独立验证还包括 SQLite 的 21 项、真实 PostgreSQL/pgvector 的 37 项回归，以及百炼聊天、1024 维 Embedding 和知识评测冒烟；数据库回归使用模拟模型/业务工具。完整 Compose 的 fixture 跨服务烟测、Java 隔离真实 Redis/RocketMQ 的 18 项集成测试及浏览器 OWNER 直接抢课也已通过。
+
+本轮未调用外部模型。完整 Compose 中的百炼模型效果、浏览器内 Agent 审批、真实 API 的 MEMBER 浏览器权限、会话淘汰与任务续跑、跨设备恢复和网络故障仍未验收，也未给出生产吞吐结论。环境、命令和去敏结果见 Java 的[部署验证记录](https://gitee.com/chy66666/zhikexing-backend/blob/master/docs/deployment/Docker部署验证记录.md)。
 
 同一数据库只允许一个 runtime worker。开发时若要使用 Compose 的数据库，应先停止 Compose 中的 `agent-runtime`；独立验证可使用另建数据库和存储目录，避免与运行中的任务竞争。
