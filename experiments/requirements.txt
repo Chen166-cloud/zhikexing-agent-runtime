@@ -1,0 +1,2 @@
+# Install into the existing runtime virtualenv for read-only MySQL business oracles.
+PyMySQL>=1.1,<2
