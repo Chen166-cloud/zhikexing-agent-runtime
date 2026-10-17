@@ -1,7 +1,6 @@
 """版本化入库和带工作空间过滤的混合检索。"""
 
 import asyncio
-import hashlib
 import io
 import math
 import re
@@ -14,7 +13,7 @@ from pypdf import PdfReader
 from sqlalchemy import cast, delete, select
 
 from .config import Settings
-from .db import Chunk, Database, Document, DocumentVersion, new_id
+from .db import Chunk, Database, Document, DocumentVersion
 from .provider import ModelProvider, lexical_terms
 from .storage import ObjectStorage
 

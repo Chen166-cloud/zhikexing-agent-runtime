@@ -11,8 +11,6 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
-import httpx
-
 from .common import (BusinessOracle, Config, RealJavaProxy, RuntimeProcess, Services,
                      append_json, manifest, percentile, safe_error, stamp, write_json)
 

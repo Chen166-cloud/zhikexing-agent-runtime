@@ -2,7 +2,6 @@
 
 import json
 import os
-import tempfile
 import threading
 import unittest
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -11,7 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import httpx
 
-from .common import BusinessOracle, Config, RealJavaProxy, percentile, safe_error
+from .common import BusinessOracle, RealJavaProxy, percentile, safe_error
 from .evaluate import evaluate_contract, explicit_reservation_fields, load_cases, main as eval_main, summarize as eval_summary
 from .recovery import summarize as recovery_summary
 from .rag import ranking_metrics, read_jsonl, validate as validate_rag, fuse
